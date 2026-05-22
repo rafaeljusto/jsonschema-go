@@ -264,6 +264,67 @@ func TestApplyNestedDefaults(t *testing.T) {
 	}
 }
 
+func TestApplyDefaultsWithRef(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		schema    Schema
+		instancep *map[string]any
+		want      map[string]any
+	}{
+		{
+			name: "RefHasDefault",
+			schema: Schema{
+				Type: "object",
+				Properties: map[string]*Schema{
+					"A": {Ref: "#/definitions/A"},
+				},
+				Definitions: map[string]*Schema{
+					"A": {
+						Type:    "array",
+						Default: mustMarshal([]any{}),
+					},
+				},
+			},
+			instancep: &map[string]any{},
+			want:      map[string]any{"A": []any{}},
+		},
+		{
+			name: "RefDefaultOverriden",
+			schema: Schema{
+				Type: "object",
+				Properties: map[string]*Schema{
+					"A": {
+						Ref:     "#/definitions/A",
+						Default: mustMarshal([]any{1, 2, 3}),
+					},
+				},
+				Definitions: map[string]*Schema{
+					"A": {
+						Type:    "array",
+						Default: mustMarshal([]any{}),
+					},
+				},
+			},
+			instancep: &map[string]any{},
+			want:      map[string]any{"A": []any{float64(1), float64(2), float64(3)}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := tt.schema.Resolve(&ResolveOptions{ValidateDefaults: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := res.ApplyDefaults(tt.instancep); err != nil {
+				t.Fatal(err)
+			}
+
+			if diff := cmp.Diff(&tt.want, tt.instancep, cmpopts.IgnoreUnexported(Schema{})); diff != "" {
+				t.Fatalf("Schema mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestStructInstance(t *testing.T) {
 	instance := struct {
 		I int
